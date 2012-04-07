@@ -91,11 +91,9 @@ penalize() {
 
     PENALIZED[$user]=$user
 
-    echo "renice -u $user -p 20"
+    renice -n 20 -u $user > /dev/null
 
-    echo "ps -u $user --format=pid | xargs echo ionice -c idle -p"
-
-    logger -p user.debug -t "supernice" "newly penalized $user"
+    ps -u $user --format=pid h | xargs ionice -c idle -p
 }
 
 
@@ -196,6 +194,17 @@ stop() {
 start() {
     echo "starting supernice daemon" > /dev/stderr
     daemonize
+}
+
+status() {
+    set +e
+    if [ -f "$PID_FILE" ];
+    then
+        old_pid=$(cat "$PID_FILE")
+        echo "sending HUP to supernice daemon with pid $old_pid - check /var/log/syslog for stats" > /dev/stderr
+        kill -HUP $old_pid
+    fi
+    set -e
 }
 
 restart() {
