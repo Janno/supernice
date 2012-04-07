@@ -60,12 +60,12 @@ update() {
         ((t += 10#$secs ))
         set -e
         users_[$user]=$user
-        tmp[$user]=$(( ${tmp[${user}]=0} + $t ))  
+        tmp[$user]=$(( ${tmp[${user}]:-0} + $t ))  
     done
 
     for user in "${users_[@]}";
     do
-        if (( !${USERS[$user]=0} ));
+        if (( !${USERS[$user]:-0} ));
         then
             USERS[$user]=$user
         fi
@@ -78,9 +78,9 @@ update() {
 
         if (( $n == $MAX_SAMPLES ));
         then 
-            STATS[$user]="${tmp[$user]=0} ${stats[@]:1:${MAX_SAMPLES}}"
+            STATS[$user]="${tmp[$user]:-0} ${stats[@]:1:${MAX_SAMPLES}}"
         else
-            STATS[$user]="${tmp[$user]=0} ${stats[@]}"
+            STATS[$user]="${tmp[$user]:-0} ${stats[@]}"
         fi
 
     done
@@ -165,4 +165,42 @@ daemonize() {
     jobs -p > "$PID_FILE"
 }
 
-daemonize
+stop() {
+    set +e
+    if [ -f "$PID_FILE" ];
+    then
+        old_pid=$(cat "$PID_FILE")
+        ps -p $old_pid h | grep supernice > /dev/null
+        if [ "$?" == "0" ];
+        then
+            echo -n "killing supernice daemon process with pid $old_pid" > /dev/stderr
+            kill $old_pid
+            for i in `seq 5`;
+            do
+                echo -n "." > /dev/stderr
+                ps -p $old_pid h | grep supernice > /dev/null 
+                test "$?" != "0" && echo " success" > /dev/stderr && exit
+                sleep 1
+            done
+            echo " timeout" > /dev/stderr
+            exit 1
+        else
+            echo "could not find supernice daemon with pid $old_pid" > /dev/stderr
+        fi
+    else
+        echo "no supernice daemon pid file found" > /dev/stderr
+    fi
+    set -e
+}
+
+start() {
+    echo "starting supernice daemon" > /dev/stderr
+    daemonize
+}
+
+restart() {
+    stop
+    start
+}
+
+${1:-start}
